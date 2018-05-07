@@ -5,8 +5,6 @@ from decimal import *
 # import numpy as np
 
 
-
-
 def results(value,n):
     score=(n-(value))/((n*(n-1))/2)
     return score
