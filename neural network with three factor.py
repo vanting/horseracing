@@ -52,26 +52,30 @@ def A_expect(Avalue,ranking, n):
 # elo rating system
 def rating(value,rank, result,  n,type):
     if (type ==1):
-        score = value + 7 * (Svalue(result, n) - A_expect(value, rank, n))
+        score = value + 7 * (Svalue(result, n,type) - A_expect(value, rank, n))
     else:
-        score = value + 2 * (Svalue(result,n) - A_expect(value,rank, n))
+        score = value + 2 * (Svalue(result,n,type) - A_expect(value,rank, n))
     return score
 
 # score function
-def Svalue(result,n):
-    return (n-(result))/((n*(n-1))/2)
+def Svalue(result,n,type):
+    if (type==1):
+        return (n-(result))/((n*(n-1))/2)
+    else:
+        return (n-(result+0.5))/(n*(n-1)/2)
 
 
 
 class NeuronLayer():
     def __init__(self, number_of_neurons, number_of_inputs_per_neuron):
-        self.synaptic_weights = 2 * random.random((number_of_inputs_per_neuron, number_of_neurons)) - 1
+        self.synaptic_weights = 3* random.random((number_of_inputs_per_neuron, number_of_neurons))-1
 
 
 class NeuralNetwork():
-    def __init__(self, layer1, layer2):
+    def __init__(self, layer1, layer2,layer3):
         self.layer1 = layer1
         self.layer2 = layer2
+        self.layer3=layer3
 
 
     def __sigmoid(self, x):
@@ -85,11 +89,15 @@ class NeuralNetwork():
     def train(self, training_set_inputs, training_set_outputs, number_of_training_iterations):
         for iteration in range(number_of_training_iterations):
             # Pass the training set through our neural network
-            output_from_layer_1, output_from_layer_2 = self.think(training_set_inputs)
+            output_from_layer_1, output_from_layer_2 , output_from_layer_3= self.think(training_set_inputs)
 
             # Calculate the error for layer 2 (The difference between the desired output
             # and the predicted output).
-            layer2_error = training_set_outputs - output_from_layer_2
+            layer3_error = training_set_outputs - output_from_layer_3
+            layer3_delta = layer3_error * self.__sigmoid_derivative(output_from_layer_3)
+
+
+            layer2_error = layer3_delta.dot(self.layer3.synaptic_weights.T)
             layer2_delta = layer2_error * self.__sigmoid_derivative(output_from_layer_2)
 
             # Calculate the error for layer 1 (By looking at the weights in layer 1,
@@ -97,13 +105,16 @@ class NeuralNetwork():
             layer1_error = layer2_delta.dot(self.layer2.synaptic_weights.T)
             layer1_delta = layer1_error * self.__sigmoid_derivative(output_from_layer_1)
 
+
             # Calculate how much to adjust the weights by
             layer1_adjustment = training_set_inputs.T.dot(layer1_delta)
             layer2_adjustment = output_from_layer_1.T.dot(layer2_delta)
+            layer3_adjustment = output_from_layer_2.T.dot(layer3_delta)
 
             # Adjust the weights.
             self.layer1.synaptic_weights += layer1_adjustment
             self.layer2.synaptic_weights += layer2_adjustment
+            self.layer3.synaptic_weights += layer3_adjustment
 
 
 
@@ -111,7 +122,8 @@ class NeuralNetwork():
     def think(self, inputs):
         output_from_layer1 = self.__sigmoid(dot(inputs, self.layer1.synaptic_weights))
         output_from_layer2 = self.__sigmoid(dot(output_from_layer1, self.layer2.synaptic_weights))
-        return output_from_layer1, output_from_layer2
+        output_from_layer3 = self.__sigmoid(dot(output_from_layer2, self.layer3.synaptic_weights))
+        return output_from_layer1, output_from_layer2,output_from_layer3
 
     # The neural network prints its weights
     def print_weights(self):
@@ -239,9 +251,9 @@ while(ending_point<6000):
                 else:
 
                     # two horses win a race
-                    jockey_score[jockey_ranking[x][4]][1] = rating(valueOfJockey, jockey_ranking, jockey_ranking[x][1]+0.5,n-1, 1)
-                    horse_score[ranking[x][4]][1] = rating(valueOfHorse, ranking, ranking[x][1]+0.5, n-1, 2)
-                    trainer_score[trainer_ranking[x][4]][1] = rating(valueOfTrainer, trainer_ranking,trainer_ranking[x][1]+0.5, n-1, 1)
+                    jockey_score[jockey_ranking[x][4]][1] = rating(valueOfJockey, jockey_ranking, jockey_ranking[x][1],n-1, 1)
+                    horse_score[ranking[x][4]][1] = rating(valueOfHorse, ranking, ranking[x][1], n-1, 2)
+                    trainer_score[trainer_ranking[x][4]][1] = rating(valueOfTrainer, trainer_ranking,trainer_ranking[x][1], n-1, 1)
 
 
             n=0
@@ -298,15 +310,17 @@ while(ending_point<6000):
         # Create layer 2 (2 single neuron with 5 inputs)
         layer2 = NeuronLayer(2, 5)
 
+        layer3=NeuronLayer(1,2)
+
         # Combine the layers to create a neural network
-        neural_network = NeuralNetwork(layer1, layer2)
+        neural_network = NeuralNetwork(layer1, layer2,layer3)
 
         training_set_inputs = X
         training_set_outputs = y
 
         # Train the neural network using the training set.
         # Do it 60,000 times and make small adjustments each time.
-        neural_network.train(training_set_inputs, training_set_outputs, 10000)
+        neural_network.train(training_set_inputs, training_set_outputs, 100000)
 
 
         arrayOfHorse=[]
@@ -374,7 +388,8 @@ while(ending_point<6000):
         #standardization and prediction
         input_scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
         verification_data = input_scaler.fit_transform(verification_data)
-        hidden_state, output = neural_network.think(verification_data)
+        # hidden_state, output = neural_network.think(verification_data)
+        hidden_state1,hidden_state2, output = neural_network.think(verification_data)
 
 
 
@@ -393,20 +408,32 @@ while(ending_point<6000):
     temp_num = 0
 
     #sorting
-    for x in range(len(people) - 1, 0, -1):
+    for x in range(len(people)):
 
-        if people[x][0] == i:
-            num = num + 1
-            temp_num = x
+        if people [x][0]!= ending_point+verify_sample_size-1:
 
+            if people[x][0]==i :
+                num=num+1
+
+            else:
+                #sorting
+                for z in range(num):
+                    for y in range(z):
+                        if people[temp_num + y][6] > people[temp_num + y + 1][6]:
+                            swap(people, temp_num + y)
+
+                temp_num=x
+                i=people[x][0]
+                num = 0
         else:
-            i = people[x][0]
-            for z in range(num - 1, 0, -1):
-                for y in range(z):
-                    if people[temp_num + y][6] > people[temp_num + y + 1][6]:
-                        swap(people, temp_num + y)
 
-            num = 0
+            for z in range(len(people)- x):
+                for y in range(z):
+                    if people[ x+y][6] >people[x+y+1][6]:
+                        swap(people, x+y)
+
+
+
 
     i = ending_point;
     set = 0;
@@ -433,9 +460,9 @@ while(ending_point<6000):
             temp_mean = 0;
             temp3 = 0;
 
-        if (set < 1 ) and signal[people[x][1]!=1] :
+        if (set < 1 )  :
             temp_mean = temp_mean + people[x][1];
-            if set == 0:
+            if set == 0 and signal[int (people[x][0])]!=1:
                 if people[x][1] ==1:
                     total_win = total_win + 1
                     total_money = total_money + people[x][4] * 10 - 10
@@ -643,7 +670,7 @@ while(ending_point<6000):
                     twe_fif = twe_fif + 1
                     if people[x][1] ==1:
                         total_twe_fif=total_twe_fif+1
-                        money_twe_fif = money_twe_fif + 10 * people[x][5] - 10
+                        money_twe_fif = money_twe_fif + 10 * people[x][4] - 10
 
                         w_twe_fif = w_twe_fif + 1
                     else:
@@ -678,6 +705,7 @@ while(ending_point<6000):
 
     print("")
     print("total number of winning %3d     total money: %3d " % (total_win, total_money))
+    print("the range is between 1 to 30: %3d" % (money_five+money_ten+money_fif+money+money_twe_fif+money_thir))
     print(" money in specific odd range between 0 to 30:%8.0f"%(money+money_twe_fif+money_thir))
     starting_point = starting_point + verify_sample_size
     ending_point = ending_point + verify_sample_size
@@ -693,6 +721,6 @@ print("for 15 to 20 :", bet_twe, " having ", total_twe)
 print("for 20 to 25 :", bet_twe_fif, " having ", total_twe_fif)
 print("for 25 to 30 :", bet_thir, " having ", total_thir)
 
-print(t1," ", t2," ", t3," ", t4," ", t5," ", t6," ", t7," ", t8," ", t9," ", t10," "," ", t11," ", t12," ", t13," ", t14," ", t15," ", t16," ", t17," ", t18," ", t19," ", t20," ", t21," ", t22," ", t23," ", t24," ", t25," ", t26," ", t27," ", t28," ", t29," ", t30)
-print(p1," ", p2," ", p3," ", p4," ", p5," ", p6," ", p7," ", p8," ", p9," ", p10," ",p11," ", p12," ", p13," ", p14," ", p15," ", p16," ", p17," ", p18," ", p19," ", p20," ", p21," ", p22," ", p23," ", p24," ", p25," ", p26," ", p27," ", p28," ", p29," ", p30)
+print( t2," ", t3," ", t4," ", t5," ", t6," ", t7," ", t8," ", t9," ", t10," "," ", t11," ", t12," ", t13," ", t14," ", t15," ", t16," ", t17," ", t18," ", t19," ", t20," ", t21," ", t22," ", t23," ", t24," ", t25," ", t26," ", t27," ", t28," ", t29," ", t30)
+print( p2," ", p3," ", p4," ", p5," ", p6," ", p7," ", p8," ", p9," ", p10," ",p11," ", p12," ", p13," ", p14," ", p15," ", p16," ", p17," ", p18," ", p19," ", p20," ", p21," ", p22," ", p23," ", p24," ", p25," ", p26," ", p27," ", p28," ", p29," ", p30)
 
